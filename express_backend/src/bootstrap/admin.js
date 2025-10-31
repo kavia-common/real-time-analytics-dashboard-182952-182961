@@ -22,9 +22,10 @@ async function seedAdminUser({ force = false } = {}) {
    *
    * Returns: { ok: boolean, action: 'created'|'updated'|'skipped'|'noop', email: string, username: string|null, message?: string }
    */
-  const email = (process.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
-  const password = String(process.env.VITE_ADMIN_PASSWORD || '');
-  const usernameFromEnv = (process.env.VITE_ADMIN_USERNAME || '').trim();
+  // Prefer non-VITE envs, fallback to legacy VITE_* for backward compatibility
+  const email = (process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
+  const password = String(process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || '');
+  const usernameFromEnv = (process.env.ADMIN_USERNAME || process.env.VITE_ADMIN_USERNAME || '').trim();
 
   if (!email || !password) {
     return { ok: false, action: 'noop', email, username: null, message: 'VITE_ADMIN_EMAIL or VITE_ADMIN_PASSWORD missing' };

@@ -16,47 +16,78 @@ function extractToken(req) {
   return null;
 }
 
+/**
+ * Decode and verify JWT using shared secret.
+ * Returns standardized principal shape: { id, username, email, roles[], role? }
+ */
+function verifyAndNormalizeToken(req) {
+  const token = extractToken(req);
+  if (!token) {
+    const err = new Error('Missing Authorization Bearer token');
+    err.statusCode = 401;
+    throw err;
+  }
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    const err = new Error('JWT not configured');
+    err.statusCode = 500;
+    throw err;
+  }
+  const payload = jwt.verify(token, secret);
+  const roles = Array.isArray(payload.roles) ? payload.roles : (payload.role ? [payload.role] : []);
+  return {
+    id: payload.sub,
+    username: payload.username,
+    email: payload.email,
+    roles,
+    role: payload.role || (roles.includes('admin') ? 'admin' : undefined),
+  };
+}
+
 // PUBLIC_INTERFACE
 function requireAuth(req, res, next) {
-  /** Express middleware to require a valid JWT and attach user to req.user */
+  /** Express middleware to require a valid JWT (user or admin) and attach principal to req.user */
   try {
-    const token = extractToken(req);
-    if (!token) {
-      return res.status(401).json({ error: 'Missing Authorization Bearer token' });
-    }
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      // Do not leak config details in production, but make it clear for devs
-      return res.status(500).json({ error: 'JWT not configured' });
-    }
-    const payload = jwt.verify(token, secret);
-    // Attach limited user info
-    req.user = {
-      id: payload.sub,
-      username: payload.username,
-      email: payload.email,
-      roles: Array.isArray(payload.roles) ? payload.roles : [],
-    };
+    const principal = verifyAndNormalizeToken(req);
+    req.user = principal;
     return next();
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return res.status(err.statusCode || 401).json({ error: err.message || 'Invalid or expired token' });
   }
 }
 
 // PUBLIC_INTERFACE
 function requireAdmin(req, res, next) {
-  /** Express middleware to require admin role on an authenticated user */
+  /** Express middleware to require admin role after requireAuth */
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const roles = req.user.roles || [];
-  if (!roles.includes('admin')) {
-    return res.status(403).json({ error: 'Admin role required' });
+  const explicitRole = req.user.role;
+  if (explicitRole === 'admin' || roles.includes('admin')) {
+    return next();
   }
-  return next();
+  return res.status(403).json({ error: 'Admin role required' });
+}
+
+// PUBLIC_INTERFACE
+function requireAdminAuth(req, res, next) {
+  /** Express middleware to require a valid admin JWT specifically. */
+  try {
+    const principal = verifyAndNormalizeToken(req);
+    const roles = principal.roles || [];
+    if (principal.role === 'admin' || roles.includes('admin')) {
+      req.user = principal;
+      return next();
+    }
+    return res.status(403).json({ error: 'Admin role required' });
+  } catch (err) {
+    return res.status(err.statusCode || 401).json({ error: err.message || 'Invalid or expired token' });
+  }
 }
 
 module.exports = {
   requireAuth,
   requireAdmin,
+  requireAdminAuth,
 };

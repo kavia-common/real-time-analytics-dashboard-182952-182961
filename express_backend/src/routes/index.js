@@ -4,6 +4,7 @@ const express = require('express');
 const healthController = require('../controllers/health');
 const eventsApi = require('./events');
 const authApi = require('./auth');
+const adminAuthApi = require('./adminAuth');
 const mcqApi = require('./mcq');
 const metricsApi = require('./metrics');
 
@@ -58,6 +59,7 @@ router.get('/health', healthController.check.bind(healthController));
  * - Metrics (/api/metrics/...)
  */
 router.use('/api', authApi);
+router.use('/api', adminAuthApi);
 router.use('/api', eventsApi);
 router.use('/api', mcqApi);
 router.use('/api', metricsApi);

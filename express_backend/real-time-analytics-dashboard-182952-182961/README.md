@@ -24,6 +24,11 @@ Auth:
 - POST /api/auth/login -> Login {email, password} returns { user, token }
 - GET /api/auth/me -> Get current user (requires Authorization: Bearer <token>)
 
+Admin Auth (separate collection and JWT role=admin):
+- POST /api/admin/auth/signup -> Create admin {username, email, password} returns { admin, token }
+- POST /api/admin/auth/login -> Login admin {email, password} returns { admin, token }
+- GET /api/admin/auth/me -> Get current admin (requires Authorization: Bearer <token>)
+
 API:
 - GET /api/events -> last 10 events sorted by timestamp desc
 - POST /api/events -> { username, event_type, timestamp? } returns 201 and emits 'new_event'
