@@ -182,11 +182,15 @@ router.post('/auth/login', async (req, res, next) => {
     }
     const user = await User.findOne({ email: String(email).toLowerCase() });
     if (!user) {
+      // eslint-disable-next-line no-console
+      console.warn(`[Auth] Login failed: user not found for email ${String(email).toLowerCase()}`);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
+      // eslint-disable-next-line no-console
+      console.warn(`[Auth] Login failed: bad password for ${user.email}`);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 

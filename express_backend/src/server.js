@@ -5,6 +5,7 @@ const http = require('http');
 const app = require('./app');
 const { connectMongoWithRetry, disconnectMongo } = require('./db');
 const { initIO } = require('./socket');
+const { subscribeAdminBootstrapOnConnect } = require('./bootstrap/admin');
 
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -20,8 +21,18 @@ server.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
 });
 
-// Start background Mongo connection retry loop
+ // Start background Mongo connection retry loop
 const retryController = connectMongoWithRetry(2000, 30000);
+
+// Subscribe admin bootstrap to run once when Mongo connects
+try {
+  subscribeAdminBootstrapOnConnect();
+  // eslint-disable-next-line no-console
+  console.log('[Bootstrap] Admin bootstrap subscribed to Mongo connection event');
+} catch (e) {
+  // eslint-disable-next-line no-console
+  console.warn('[Bootstrap] Failed to subscribe admin bootstrap:', e && e.message ? e.message : e);
+}
 
 // Global safety: avoid process crash on unhandled promise rejections during startup
 process.on('unhandledRejection', (reason) => {

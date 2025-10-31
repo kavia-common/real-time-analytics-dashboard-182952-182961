@@ -62,4 +62,46 @@ router.use('/api', eventsApi);
 router.use('/api', mcqApi);
 router.use('/api', metricsApi);
 
+/**
+ * @swagger
+ * /api/admin/seed:
+ *   post:
+ *     summary: Trigger admin seeding (maintenance)
+ *     description: >
+ *       Triggers admin user seeding from environment variables. Guarded by X-Maintenance-Token header matching VITE_MAINTENANCE_TOKEN.
+ *       This endpoint should be disabled/removed after successful provisioning.
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: header
+ *         name: X-Maintenance-Token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: One-time maintenance token configured via VITE_MAINTENANCE_TOKEN
+ *     responses:
+ *       200:
+ *         description: Result of seeding
+ *       401:
+ *         description: Unauthorized
+ */
+const { seedAdminUser } = require('../bootstrap/admin');
+// PUBLIC_INTERFACE
+router.post('/api/admin/seed', async (req, res) => {
+  /** Maintenance endpoint to seed admin from env. Requires X-Maintenance-Token matching VITE_MAINTENANCE_TOKEN. */
+  const configured = String(process.env.VITE_MAINTENANCE_TOKEN || '');
+  const provided = String(req.get('X-Maintenance-Token') || '');
+  if (!configured || !provided || configured !== provided) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const force = String(req.query.force || '').toLowerCase() === 'true';
+    const result = await seedAdminUser({ force });
+    return res.status(200).json(result);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[Maintenance] admin seed error:', e && e.message ? e.message : e);
+    return res.status(500).json({ error: 'Seeding failed' });
+  }
+});
+
 module.exports = router;
