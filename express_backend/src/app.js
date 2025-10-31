@@ -10,10 +10,27 @@ const swaggerSpec = require('../swagger');
 // Initialize express app
 const app = express();
 
-// Configure CORS using FRONTEND_ORIGIN
+// Configure CORS using FRONTEND_ORIGIN with sane local defaults
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+const STRICT_CORS = String(process.env.STRICT_CORS || '').toLowerCase() === 'true';
+
+// Allow several local origins by default; fall back to wildcard in non-strict mode
+const localOrigins = [
+  FRONTEND_ORIGIN,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+];
+
 app.use(cors({
-  origin: FRONTEND_ORIGIN,
+  origin: STRICT_CORS ? localOrigins : ((origin, callback) => {
+    // In dev or no origin (curl, health checks), allow
+    if (!origin) return callback(null, true);
+    return callback(null, true);
+  }),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -21,30 +38,37 @@ app.use(cors({
 
 app.set('trust proxy', true);
 
-// Swagger docs with dynamic server URL
+// Swagger docs with dynamic server URL and guards for ports behind proxies
 app.use('/docs', swaggerUi.serve, (req, res, next) => {
-  const host = req.get('host');           // may or may not include port
-  let protocol = req.protocol;            // http or https
+  try {
+    const hostHeader = req.get('host') || 'localhost';
+    let protocol = req.secure ? 'https' : (req.protocol || 'http');
 
-  const actualPort = req.socket.localPort;
-  const hasPort = host.includes(':');
+    // In some proxies localPort may be undefined; fall back to X-Forwarded-Port or parsed host
+    const forwardedPort = req.get('x-forwarded-port');
+    const actualPort = Number(forwardedPort || req.socket?.localPort || '') || (protocol === 'https' ? 443 : 80);
+    const hasPort = hostHeader.includes(':');
 
-  const needsPort =
-    !hasPort &&
-    ((protocol === 'http' && actualPort !== 80) ||
-     (protocol === 'https' && actualPort !== 443));
-  const fullHost = needsPort ? `${host}:${actualPort}` : host;
-  protocol = req.secure ? 'https' : protocol;
+    const needsPort =
+      !hasPort &&
+      ((protocol === 'http' && actualPort !== 80) ||
+       (protocol === 'https' && actualPort !== 443));
 
-  const dynamicSpec = {
-    ...swaggerSpec,
-    servers: [
-      {
-        url: `${protocol}://${fullHost}`,
-      },
-    ],
-  };
-  swaggerUi.setup(dynamicSpec)(req, res, next);
+    const fullHost = needsPort ? `${hostHeader}:${actualPort}` : hostHeader;
+
+    const dynamicSpec = {
+      ...swaggerSpec,
+      servers: [
+        {
+          url: `${protocol}://${fullHost}`,
+        },
+      ],
+    };
+    swaggerUi.setup(dynamicSpec)(req, res, next);
+  } catch (e) {
+    // Fail safe to static swagger if dynamic fails
+    swaggerUi.setup(swaggerSpec)(req, res, next);
+  }
 });
 
 // Parse JSON request body

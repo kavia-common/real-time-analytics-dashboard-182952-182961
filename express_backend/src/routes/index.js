@@ -6,7 +6,7 @@ const eventsApi = require('./events');
 
 const router = express.Router();
 
-// Health endpoint
+// Health endpoints
 /**
  * @swagger
  * /:
@@ -34,6 +34,18 @@ const router = express.Router();
  *                   example: development
  */
 router.get('/', healthController.check.bind(healthController));
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health endpoint alias
+ *     description: Returns service health status including environment and timestamp.
+ *     responses:
+ *       200:
+ *         description: Service health check passed
+ */
+router.get('/health', healthController.check.bind(healthController));
 
 // API routes (mount events under /api)
 router.use('/api', eventsApi);
