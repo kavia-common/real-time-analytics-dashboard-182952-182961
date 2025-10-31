@@ -12,7 +12,7 @@ const jsConfig = {
 };
 
 const ignoreConfig = {
-  ignores: ['node_modules/**'],
+  ignores: ['node_modules/**', '../react_frontend/**', 'real-time-analytics-dashboard-182952-182962/**'],
 };
 
 module.exports = [ignoreConfig, jsConfig];

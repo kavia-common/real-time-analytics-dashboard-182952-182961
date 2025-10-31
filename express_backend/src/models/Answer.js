@@ -50,8 +50,17 @@ const AnswerSchema = new mongoose.Schema(
   }
 );
 
-// Index for analytics: per-question answer time
+/**
+ * Indexes:
+ * - Per question/time queries
+ * - created_at desc for recent queries
+ * - user_id for distinct user aggregations
+ */
 AnswerSchema.index({ question_id: 1, created_at: -1 });
+// Efficient time range scans
+AnswerSchema.index({ created_at: -1 });
+// User-based aggregations and lookups
+AnswerSchema.index({ user_id: 1, created_at: -1 });
 
 const Answer = mongoose.model('Answer', AnswerSchema);
 

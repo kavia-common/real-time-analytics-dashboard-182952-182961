@@ -3,6 +3,7 @@
 const express = require('express');
 const User = require('../models/User');
 const UserEvent = require('../models/UserEvent');
+const Answer = require('../models/Answer');
 
 const router = express.Router();
 
@@ -244,6 +245,140 @@ router.get('/metrics/recent-activity', async (req, res, next) => {
       .limit(10)
       .lean();
     return res.status(200).json(items);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * @swagger
+ * /api/metrics/users-answered-today:
+ *   get:
+ *     summary: Unique users who answered today (UTC)
+ *     description: >
+ *       Returns the total count of distinct users who submitted answers today (from 00:00 UTC to now),
+ *       and a time series aggregated per minute showing distinct user counts for each minute bucket.
+ *     tags: [Metrics]
+ *     responses:
+ *       200:
+ *         description: Aggregated unique answerers for today
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total:
+ *                   type: integer
+ *                 series:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       time:
+ *                         type: string
+ *                         description: ISO string for the minute bucket (UTC, e.g., 2025-01-01T12:34:00.000Z)
+ *                       value:
+ *                         type: integer
+ *                 timezone:
+ *                   type: string
+ *                   description: Aggregation uses UTC ('UTC')
+ */
+router.get('/metrics/users-answered-today', async (req, res, next) => {
+  try {
+    // Compute UTC start of "today" and now (UTC)
+    const now = new Date();
+    const startOfTodayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+
+    // Aggregate distinct users who answered today using Answer.created_at
+    // total: distinct user_id
+    const totalAgg = await Answer.aggregate([
+      { $match: { created_at: { $gte: startOfTodayUtc, $lte: now } } },
+      { $group: { _id: '$user_id' } },
+      { $group: { _id: null, total: { $sum: 1 } } },
+      { $project: { _id: 0, total: 1 } },
+    ]).catch(() => []);
+
+    const total = Array.isArray(totalAgg) && totalAgg.length ? totalAgg[0].total : 0;
+
+    // series: per minute bucket distinct user_id
+    // Use $dateTrunc where available (MongoDB 5.0+); fallback to $dateToString-based grouping for portability
+    let series = [];
+    try {
+      series = await Answer.aggregate([
+        { $match: { created_at: { $gte: startOfTodayUtc, $lte: now } } },
+        {
+          $group: {
+            _id: {
+              minute: {
+                $dateTrunc: { date: '$created_at', unit: 'minute', timezone: 'UTC' },
+              },
+              user_id: '$user_id',
+            },
+          },
+        },
+        {
+          $group: {
+            _id: '$_id.minute',
+            value: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            time: '$_id',
+            value: 1,
+          },
+        },
+        { $sort: { time: 1 } },
+      ]);
+    } catch (_) {
+      // Fallback approach using date string truncation
+      series = await Answer.aggregate([
+        { $match: { created_at: { $gte: startOfTodayUtc, $lte: now } } },
+        {
+          $group: {
+            _id: {
+              minute: {
+                $dateToString: { format: '%Y-%m-%dT%H:%M:00Z', date: '$created_at' },
+              },
+              user_id: '$user_id',
+            },
+          },
+        },
+        {
+          $group: {
+            _id: '$_id.minute',
+            value: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            time: '$_id',
+            value: 1,
+          },
+        },
+        { $sort: { time: 1 } },
+      ]);
+
+      // Normalize string time to Date to ensure consistent ISO output
+      series = series.map((pt) => ({
+        time: new Date(pt.time),
+        value: pt.value,
+      }));
+    }
+
+    // Ensure output times are ISO strings
+    const normalizedSeries = series.map((pt) => ({
+      time: (pt.time instanceof Date ? pt.time : new Date(pt.time)).toISOString(),
+      value: Number(pt.value) || 0,
+    }));
+
+    return res.status(200).json({
+      total: Number(total) || 0,
+      series: normalizedSeries,
+      timezone: 'UTC',
+    });
   } catch (err) {
     return next(err);
   }
