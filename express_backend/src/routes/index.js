@@ -3,6 +3,7 @@
 const express = require('express');
 const healthController = require('../controllers/health');
 const eventsApi = require('./events');
+const authApi = require('./auth');
 
 const router = express.Router();
 
@@ -47,7 +48,8 @@ router.get('/', healthController.check.bind(healthController));
  */
 router.get('/health', healthController.check.bind(healthController));
 
-// API routes (mount events under /api)
+// API routes (mount under /api)
+router.use('/api', authApi);
 router.use('/api', eventsApi);
 
 module.exports = router;
