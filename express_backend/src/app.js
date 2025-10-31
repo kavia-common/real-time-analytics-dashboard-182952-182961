@@ -1,3 +1,6 @@
+'use strict';
+
+require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const routes = require('./routes');
@@ -7,19 +10,25 @@ const swaggerSpec = require('../swagger');
 // Initialize express app
 const app = express();
 
+// Configure CORS using FRONTEND_ORIGIN
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
 app.use(cors({
-  origin: '*',
+  origin: FRONTEND_ORIGIN,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
+
 app.set('trust proxy', true);
+
+// Swagger docs with dynamic server URL
 app.use('/docs', swaggerUi.serve, (req, res, next) => {
   const host = req.get('host');           // may or may not include port
-  let protocol = req.protocol;          // http or https
+  let protocol = req.protocol;            // http or https
 
   const actualPort = req.socket.localPort;
   const hasPort = host.includes(':');
-  
+
   const needsPort =
     !hasPort &&
     ((protocol === 'http' && actualPort !== 80) ||
@@ -45,7 +54,9 @@ app.use(express.json());
 app.use('/', routes);
 
 // Error handling middleware
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  // eslint-disable-next-line no-console
   console.error(err.stack);
   res.status(500).json({
     status: 'error',

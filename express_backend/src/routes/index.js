@@ -1,9 +1,12 @@
+'use strict';
+
 const express = require('express');
 const healthController = require('../controllers/health');
+const eventsApi = require('./events');
 
 const router = express.Router();
-// Health endpoint
 
+// Health endpoint
 /**
  * @swagger
  * /:
@@ -31,5 +34,8 @@ const router = express.Router();
  *                   example: development
  */
 router.get('/', healthController.check.bind(healthController));
+
+// API routes (mount events under /api)
+router.use('/api', eventsApi);
 
 module.exports = router;
