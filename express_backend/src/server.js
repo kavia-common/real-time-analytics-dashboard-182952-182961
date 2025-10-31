@@ -3,7 +3,7 @@
 require('dotenv').config();
 const http = require('http');
 const app = require('./app');
-const { connectMongo, disconnectMongo } = require('./db');
+const { connectMongoWithRetry, disconnectMongo } = require('./db');
 const { initIO } = require('./socket');
 
 const PORT = process.env.PORT || 3001;
@@ -11,23 +11,28 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 const server = http.createServer(app);
 
-// Initialize Socket.io
+// Initialize Socket.io (does not block startup)
 const io = initIO(server);
 
-// Start server after attempting Mongo connect
-(async () => {
-  try {
-    await connectMongo();
-    server.listen(PORT, HOST, () => {
-      // eslint-disable-next-line no-console
-      console.log(`Server running at http://${HOST}:${PORT}`);
-    });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to start server due to Mongo connection error:', err.message);
-    process.exit(1);
-  }
-})();
+// Start HTTP server immediately; do not block on DB availability
+server.listen(PORT, HOST, () => {
+  // eslint-disable-next-line no-console
+  console.log(`Server running at http://${HOST}:${PORT}`);
+});
+
+// Start background Mongo connection retry loop
+const retryController = connectMongoWithRetry(2000, 30000);
+
+// Global safety: avoid process crash on unhandled promise rejections during startup
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.error('[Process] Unhandled Promise Rejection:', reason && reason.message ? reason.message : reason);
+});
+
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[Process] Uncaught Exception:', err && err.message ? err.message : err);
+});
 
 // Graceful shutdown
 async function shutdown(signal) {
@@ -37,6 +42,10 @@ async function shutdown(signal) {
     // eslint-disable-next-line no-console
     console.log('HTTP server closed');
     try {
+      // stop retry loop and disconnect if connected
+      if (retryController && typeof retryController.stop === 'function') {
+        retryController.stop();
+      }
       await disconnectMongo();
     } catch (e) {
       // eslint-disable-next-line no-console
