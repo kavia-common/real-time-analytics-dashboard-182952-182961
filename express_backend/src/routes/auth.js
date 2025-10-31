@@ -80,7 +80,7 @@ function toPublicUser(user) {
  *       400:
  *         description: Validation or conflict error
  */
-router.post('/auth/signup', async (req, res, next) => {
+router.post('/signup', async (req, res, next) => {
   try {
     const { username, email, password, roles } = req.body || {};
     if (!username || !email || !password) {
@@ -161,7 +161,7 @@ router.post('/auth/signup', async (req, res, next) => {
  *       401:
  *         description: Invalid credentials
  */
-router.post('/auth/login', async (req, res, next) => {
+router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) {
@@ -231,7 +231,7 @@ router.post('/auth/login', async (req, res, next) => {
  */
 const { requireAuth } = require('../middleware');
 
-router.get('/auth/me', requireAuth, async (req, res, next) => {
+router.get('/me', requireAuth, async (req, res, next) => {
   try {
     // Fetch fresh user to ensure up-to-date roles/email if needed
     const userDoc = await User.findById(req.user.id);

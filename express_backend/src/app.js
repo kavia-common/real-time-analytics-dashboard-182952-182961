@@ -20,38 +20,29 @@ try {
 // Initialize express app
 const app = express();
 
-// Configure CORS using FRONTEND_ORIGIN with sane local defaults
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
-const STRICT_CORS = String(process.env.STRICT_CORS || '').toLowerCase() === 'true';
-
-// Allow several local origins by default; fall back to wildcard in non-strict mode
-const localOrigins = [
-  FRONTEND_ORIGIN,
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:8080',
-  'http://127.0.0.1:8080',
-];
-
-app.use(cors({
-  origin: STRICT_CORS
-    ? function (origin, callback) {
-        const allowed = !origin || localOrigins.includes(origin);
-        return callback(null, allowed);
-      }
-    : ((origin, callback) => {
-        // In dev or no origin (curl, health checks), allow
-        if (!origin) return callback(null, true);
-        return callback(null, true);
-      }),
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+/**
+ * Global CORS configuration
+ * - Origin restricted to deployed frontend: https://real-time-analytics-dashboard.kavia.app
+ * - Methods allowed: GET, POST, PUT, PATCH, DELETE, OPTIONS
+ * - Headers allowed: Content-Type, Authorization
+ * - Credentials: true (safe for cookies/JWT if used)
+ * - Ensure OPTIONS preflight returns 204
+ *
+ * Note: We keep this middleware at the very top (before routes) to avoid
+ * any restrictive overrides later in the chain.
+ */
+const FRONTEND_ORIGIN = 'https://real-time-analytics-dashboard.kavia.app';
+const corsOptions = {
+  origin: FRONTEND_ORIGIN,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Authorization'],
-  credentials: true,
+  credentials: true, // keep true if cookies are used; harmless for bearer tokens
   optionsSuccessStatus: 204,
-}));
+};
+app.use(cors(corsOptions));
+// Explicitly handle preflight across all routes
+app.options('*', cors(corsOptions));
 
 app.set('trust proxy', true);
 
