@@ -285,15 +285,24 @@ router.post('/answers', requireAuth, async (req, res, next) => {
 
     // Log user_event for analytics
     try {
-      await new UserEvent({
+      const ue = await new UserEvent({
         user_id: req.user.id,
         username: req.user.username,
-        event_type: 'answer', // Note: extend enum if needed
+        event_type: 'answer',
         meta: {
           question_id: String(question._id),
           isCorrect,
         },
       }).save();
+      // Emit metrics updates
+      try {
+        const io = getIO();
+        io.emit('user_event_created', ue.toObject());
+        io.emit('metrics_update', { type: 'answer' });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[Socket.io] emit metrics_update failed:', e.message);
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('[UserEvent] answer log failed:', e.message);

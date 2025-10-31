@@ -130,6 +130,8 @@ router.post('/events', async (req, res, next) => {
     try {
       const io = getIO();
       io.emit('new_event', saved.toObject());
+      // Also notify metrics listeners for general updates
+      io.emit('metrics_update', { type: 'event' });
     } catch (emitErr) {
       // Log but do not fail the request
       // eslint-disable-next-line no-console

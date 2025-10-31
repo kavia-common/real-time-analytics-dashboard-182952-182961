@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const UserEvent = require('../models/UserEvent');
+const { getIO } = require('../socket');
 
 const router = express.Router();
 
@@ -106,12 +107,21 @@ router.post('/auth/signup', async (req, res, next) => {
 
     // Log user_event for signup
     try {
-      await new UserEvent({
+      const ue = await new UserEvent({
         user_id: saved._id,
         username: saved.username,
         event_type: 'signup',
         meta: { ua: req.get('user-agent') || '' },
       }).save();
+      // Emit granular and aggregate metrics updates
+      try {
+        const io = getIO();
+        io.emit('user_event_created', ue.toObject());
+        io.emit('metrics_update', { type: 'signup' });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[Socket.io] emit metrics_update failed:', e.message);
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('[UserEvent] signup log failed:', e.message);
@@ -169,12 +179,20 @@ router.post('/auth/login', async (req, res, next) => {
 
     // Log user_event for login
     try {
-      await new UserEvent({
+      const ue = await new UserEvent({
         user_id: user._id,
         username: user.username,
         event_type: 'login',
         meta: { ua: req.get('user-agent') || '' },
       }).save();
+      try {
+        const io = getIO();
+        io.emit('user_event_created', ue.toObject());
+        io.emit('metrics_update', { type: 'login' });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[Socket.io] emit metrics_update failed:', e.message);
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('[UserEvent] login log failed:', e.message);
