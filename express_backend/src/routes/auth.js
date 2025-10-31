@@ -41,19 +41,6 @@ function toPublicUser(user) {
 }
 
 /**
- * Sanitize user response
- */
-function toPublicUser(user) {
-  return {
-    id: String(user._id),
-    username: user.username,
-    email: user.email,
-    roles: user.roles || [],
-    created_at: user.created_at,
-  };
-}
-
-/**
  * @swagger
  * tags:
  *   name: Auth

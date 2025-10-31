@@ -5,7 +5,17 @@ const cors = require('cors');
 const express = require('express');
 const routes = require('./routes');
 const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('../swagger');
+// Defensive load of swagger spec; if it fails, fall back to minimal spec later.
+let swaggerSpec;
+try {
+  // PUBLIC_INTERFACE
+  /** Load generated swagger spec for API docs. Falls back to empty spec on error. */
+  swaggerSpec = require('../swagger');
+} catch (e) {
+  // eslint-disable-next-line no-console
+  console.warn('[Swagger] Failed to load swagger spec:', e && e.message ? e.message : e);
+  swaggerSpec = { openapi: '3.0.0', info: { title: 'API', version: '1.0.0' }, paths: {} };
+}
 
 // Initialize express app
 const app = express();
