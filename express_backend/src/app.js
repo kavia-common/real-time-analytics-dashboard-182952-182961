@@ -26,14 +26,21 @@ const localOrigins = [
 ];
 
 app.use(cors({
-  origin: STRICT_CORS ? localOrigins : ((origin, callback) => {
-    // In dev or no origin (curl, health checks), allow
-    if (!origin) return callback(null, true);
-    return callback(null, true);
-  }),
+  origin: STRICT_CORS
+    ? function (origin, callback) {
+        const allowed = !origin || localOrigins.includes(origin);
+        return callback(null, allowed);
+      }
+    : ((origin, callback) => {
+        // In dev or no origin (curl, health checks), allow
+        if (!origin) return callback(null, true);
+        return callback(null, true);
+      }),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Authorization'],
   credentials: true,
+  optionsSuccessStatus: 204,
 }));
 
 app.set('trust proxy', true);
