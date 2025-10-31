@@ -4,6 +4,7 @@ const express = require('express');
 const User = require('../models/User');
 const UserEvent = require('../models/UserEvent');
 const Answer = require('../models/Answer');
+const Event = require('../models/Event');
 
 const router = express.Router();
 
@@ -378,6 +379,117 @@ router.get('/metrics/users-answered-today', async (req, res, next) => {
       total: Number(total) || 0,
       series: normalizedSeries,
       timezone: 'UTC',
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * @swagger
+ * /api/metrics/event-heatmap:
+ *   get:
+ *     summary: Event heatmap by hour and day-of-week (UTC)
+ *     description: >
+ *       Aggregates events grouped by hour-of-day (0-23) and day-of-week (0-6, Sunday=0) in UTC.
+ *       Query param range supports 24h or 7d (default 7d). Falls back to Event model if UserEvent not available.
+ *     tags: [Metrics]
+ *     parameters:
+ *       - in: query
+ *         name: range
+ *         schema:
+ *           type: string
+ *           enum: [24h, 7d]
+ *         description: Time range for aggregation (default 7d)
+ *     responses:
+ *       200:
+ *         description: Heatmap buckets
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 timezone:
+ *                   type: string
+ *                   example: UTC
+ *                 buckets:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       hour:
+ *                         type: integer
+ *                         description: Hour of day (0-23)
+ *                       dow:
+ *                         type: integer
+ *                         description: Day of week (0-6, Sunday=0)
+ *                       count:
+ *                         type: integer
+ *                 last24h:
+ *                   type: boolean
+ *                   description: true if range=24h
+ */
+router.get('/metrics/event-heatmap', async (req, res, next) => {
+  try {
+    const range = (req.query.range || '7d').toLowerCase();
+    const last24h = range === '24h';
+    const since = last24h ? new Date(Date.now() - 24 * 3600 * 1000) : new Date(Date.now() - 7 * 24 * 3600 * 1000);
+
+    // Prefer UserEvent if available; fallback to Event
+    let Model = UserEvent;
+    if (!Model || !Model.aggregate) {
+      Model = Event;
+    }
+
+    // Ensure an index on timestamp exists in the selected model (noop if already there)
+    try {
+      await Model.collection.createIndex({ timestamp: -1 });
+    } catch (_) {
+      // ignore index creation errors in runtime
+    }
+
+    // Use $dateToParts with timezone 'UTC' to extract hour and dayOfWeek (1=Sun ... 7=Sat in Mongo)
+    // Convert to 0-6 with (dayOfWeek % 7)
+    const pipeline = [
+      { $match: { timestamp: { $gte: since } } },
+      {
+        $addFields: {
+          parts: { $dateToParts: { date: '$timestamp', timezone: 'UTC' } },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            hour: '$parts.hour',
+            dow1based: '$parts.dayOfWeek',
+          },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          hour: '$_id.hour',
+          dow: { $mod: ['$_id.dow1based', 7] }, // 1..7 -> 1..6,0 mapping where 1=>1 .. 7=>0 (Sun=0)
+          count: 1,
+        },
+      },
+      { $sort: { dow: 1, hour: 1 } },
+    ];
+
+    let buckets = await Model.aggregate(pipeline);
+
+    // Normalize numbers
+    buckets = (buckets || []).map((b) => ({
+      hour: Number(b.hour) || 0,
+      dow: Number(b.dow) || 0,
+      count: Number(b.count) || 0,
+    }));
+
+    return res.status(200).json({
+      timezone: 'UTC',
+      buckets,
+      last24h,
     });
   } catch (err) {
     return next(err);

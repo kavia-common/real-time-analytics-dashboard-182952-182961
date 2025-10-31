@@ -1,10 +1,11 @@
 import React from 'react';
 import UsersAnsweredTodayWidget from '../components/UsersAnsweredTodayWidget';
+import EventHeatmapWidget from '../components/EventHeatmapWidget';
 
 /**
  * PUBLIC_INTERFACE
- * Dashboard page integrating the UsersAnsweredTodayWidget component.
- * This ensures the widget is reachable from the app entry point.
+ * Dashboard page integrating key widgets (Users Answered Today, Event Heatmap).
+ * Ensures widgets are reachable from the app entry point.
  */
 export default function Dashboard() {
   return (
@@ -21,6 +22,7 @@ export default function Dashboard() {
           }}
         >
           <UsersAnsweredTodayWidget />
+          <EventHeatmapWidget />
         </div>
       </div>
     </main>
