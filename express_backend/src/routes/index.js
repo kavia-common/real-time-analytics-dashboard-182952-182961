@@ -4,6 +4,7 @@ const express = require('express');
 const healthController = require('../controllers/health');
 const eventsApi = require('./events');
 const authApi = require('./auth');
+const mcqApi = require('./mcq');
 
 const router = express.Router();
 
@@ -48,8 +49,14 @@ router.get('/', healthController.check.bind(healthController));
  */
 router.get('/health', healthController.check.bind(healthController));
 
-// API routes (mount under /api)
+/* API routes (mount under /api)
+ * Includes:
+ * - Auth (/api/auth/...)
+ * - Events (/api/events)
+ * - MCQ (/api/questions, /api/answers)
+ */
 router.use('/api', authApi);
 router.use('/api', eventsApi);
+router.use('/api', mcqApi);
 
 module.exports = router;
