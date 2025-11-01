@@ -31,7 +31,7 @@ const app = express();
  * Note: We keep this middleware at the very top (before routes) to avoid
  * any restrictive overrides later in the chain.
  */
-const FRONTEND_ORIGIN = 'https://real-time-analytics-dashboard.kavia.app';
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || process.env.VITE_FRONTEND_ORIGIN || 'http://localhost:3000';
 const corsOptions = {
   origin: FRONTEND_ORIGIN,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

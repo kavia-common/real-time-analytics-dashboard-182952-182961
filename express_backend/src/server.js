@@ -7,8 +7,8 @@ const { connectMongoWithRetry, disconnectMongo } = require('./db');
 const { initIO } = require('./socket');
 const { subscribeAdminBootstrapOnConnect } = require('./bootstrap/admin');
 
-const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '0.0.0.0';
+const PORT = process.env.PORT || process.env.VITE_PORT || 3001;
+const HOST = process.env.HOST || process.env.VITE_HOST || '0.0.0.0';
 
 const server = http.createServer(app);
 
