@@ -58,7 +58,7 @@ router.get('/health', healthController.check.bind(healthController));
  * - MCQ (/api/questions, /api/answers)
  * - Metrics (/api/metrics/...)
  */
-router.use('/api', authApi);
+router.use('/api/auth', authApi);
 router.use('/api', adminAuthApi);
 router.use('/api', eventsApi);
 router.use('/api', mcqApi);
